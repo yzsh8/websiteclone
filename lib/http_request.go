@@ -58,6 +58,19 @@ func httpGetImgFor5(sUrl, sPath string, setCook []*http.Cookie) (string, []*http
 	return res, cook
 }
 
+func downFileFor5(sUrl, sPath string) string {
+	res, b := downFile(sUrl, sPath)
+	if b == false {
+		for i := 0; i < 5; i++ {
+			res, b = downFile(sUrl, sPath)
+			if b == true {
+				break
+			}
+		}
+	}
+	return res
+}
+
 /**
 *  简单版http请求，适用于没有特别要求的
 * httpUrl	请求的网址
@@ -413,4 +426,50 @@ func httpGetImg(httpUrl, fileName string, setCookie []*http.Cookie) (string, []*
 	fmt.Println("get captcha error->", err.Error())
 
 	return "", cook
+}
+
+/**
+* 下载远程http的文件到本地
+ */
+func downFile(sUrl, fileName string) (string, bool) {
+	client := &http.Client{}
+
+	req, er := http.NewRequest("GET", sUrl, nil)
+	if er != nil {
+		return fileName, false
+	}
+	req.Close = true
+
+	fmt.Println("开始下载文件->", sUrl)
+
+	var body []byte
+	resp, err := client.Do(req)
+	if err == nil {
+		defer resp.Body.Close()
+		body, err = ioutil.ReadAll(resp.Body)
+
+		//创建多层目录,最后的是文件名不是目录
+		mPath := strings.Split(fileName, "/")
+		nPath := mPath[0]
+		for i := 1; i < len(mPath)-1; i++ {
+			nPath = nPath + "/" + mPath[i]
+		}
+		fmt.Println("正在创建多层目录->", nPath)
+		if err := os.MkdirAll(nPath, 0777); err != nil {
+			if os.IsPermission(err) {
+				fmt.Println("你不够权限创建文件目录", err.Error())
+			}
+		}
+
+		fmt.Println("保存到本地->", fileName)
+
+		out, er := os.Create(fileName)
+		if er != nil {
+			fmt.Println("create file error", er.Error())
+		}
+
+		io.Copy(out, bytes.NewReader(body))
+		return fileName, true
+	}
+	return fileName, false
 }
